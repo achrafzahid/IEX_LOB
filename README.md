@@ -52,8 +52,41 @@ to build normalized LOB tensors, then `load_tensor()` to persist them.
 - The code expects specific column names from the parser (e.g., `Exchange Timestamp`, `Buy_Ask Flag`).
 	If your parser version uses different names, adjust `transform.py` accordingly.
 
-If you'd like, I can also:
-- add a more detailed example showing how to run for a single date
-- create a `requirements.txt` or `pyproject.toml`
-- add automated tests for the transformer
+## Single-date Example
+
+To run the pipeline for a single date (no loop), you can call the functions directly. Example script:
+
+```python
+from extract import extract_day
+from transform import return_csv_path, cleanday, build_and_save_deeplob_tensors
+from load import load_tensor, remove_csv, remove_pcap
+
+date = "2024-08-05"
+extract_day(date)                  # ensure parsed CSV exists for the date
+csv_path = return_csv_path(date)
+day_dict = cleanday(csv_path)      # get per-ticker DataFrames
+for ticker, df in day_dict.items():
+		tensor = build_and_save_deeplob_tensors(df=df, ticker=ticker, date_str=date)
+		if tensor is not None:
+				load_tensor(normalized_tensor=tensor, ticker=ticker, date_str=date)
+remove_csv(csv_path)
+remove_pcap()
+```
+
+Save that as `run_single.py` and run `python3 run_single.py`.
+
+## Adapting to Different Input Data
+
+- Column names: If your parsed CSV uses different column names, update `transform.py` to map
+	the parser's columns to the expected names (e.g., `Exchange Timestamp`, `Buy_Ask Flag`,
+	`Price`, `Size`, `Symbol`).
+- Different tickers: `cleanday()` filters for `AAPL`, `NVDA`, and `SPY` as examples. Change or
+	extend this list to process additional tickers.
+- Window length & depth: `transform.py` builds 100-second windows of top-10 levels. To change
+	the snapshot horizon or depth, modify the `deque(maxlen=100)` and the top-N logic.
+- Normalization: Current normalization centers prices by mid-price and z-scores volumes per day.
+	If you prefer log-returns, min-max scaling, or per-snapshot normalization, edit the
+	normalization section in `build_and_save_deeplob_tensors()`.
+- Missing data: The transformer pads missing levels with zeros. If you have alternative
+	padding or imputation strategies, implement them before snapshotting.
 
